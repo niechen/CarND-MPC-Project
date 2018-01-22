@@ -98,8 +98,68 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+
+          int iters = 50;
+
+          // transform into car's coordinate system
+          for (int i = 0; i < ptsx.size(); i++) {
+            const double dx = ptsx[i] - px;
+            const double dy = ptsy[i] - py;
+            ptsx[i] = dx * cos(psi) + dy * sin(psi);
+            ptsy[i] = -dx * sin(psi) + dy * cos(psi);
+          }
+
+          Eigen::VectorXd ptsxv = Eigen::VectorXd::Map(ptsx.data(), ptsx.size());
+          Eigen::VectorXd ptsyv = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
+
+          auto coeffs = polyfit(ptsxv, ptsyv, 3);
+
+          double cte = polyeval(coeffs, px) - py;
+          // Due to the sign starting at 0, the orientation error is -f'(x).
+          // derivative of coeffs[0] + coeffs[1] * x -> coeffs[1]
+          double epsi = psi - atan(coeffs[1]);
+
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+
+          std::vector<double> x_vals = {state[0]};
+          std::vector<double> y_vals = {state[1]};
+          std::vector<double> psi_vals = {state[2]};
+          std::vector<double> v_vals = {state[3]};
+          std::vector<double> cte_vals = {state[4]};
+          std::vector<double> epsi_vals = {state[5]};
+          std::vector<double> delta_vals = {};
+          std::vector<double> a_vals = {};
+
+          for (size_t i = 0; i < iters; i++) {
+//            std::cout << "Iteration " << i << std::endl;
+
+            auto vars = mpc.Solve(state, coeffs);
+
+            x_vals.push_back(vars[0]);
+            y_vals.push_back(vars[1]);
+            psi_vals.push_back(vars[2]);
+            v_vals.push_back(vars[3]);
+            cte_vals.push_back(vars[4]);
+            epsi_vals.push_back(vars[5]);
+
+            delta_vals.push_back(vars[6]);
+            a_vals.push_back(vars[7]);
+
+            state << vars[0], vars[1], vars[2], vars[3], vars[4], vars[5];
+//            std::cout << "x = " << vars[0] << std::endl;
+//            std::cout << "y = " << vars[1] << std::endl;
+//            std::cout << "psi = " << vars[2] << std::endl;
+//            std::cout << "v = " << vars[3] << std::endl;
+//            std::cout << "cte = " << vars[4] << std::endl;
+//            std::cout << "epsi = " << vars[5] << std::endl;
+//            std::cout << "delta = " << vars[6] << std::endl;
+//            std::cout << "a = " << vars[7] << std::endl;
+//            std::cout << std::endl;
+          }
+
+          double steer_value = delta_vals[0];
+          double throttle_value = a_vals[0];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -108,8 +168,8 @@ int main() {
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
+          vector<double> mpc_x_vals = x_vals;
+          vector<double> mpc_y_vals = y_vals;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
@@ -118,8 +178,8 @@ int main() {
           msgJson["mpc_y"] = mpc_y_vals;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          vector<double> next_x_vals = ptsx;
+          vector<double> next_y_vals = ptsy;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
