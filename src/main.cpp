@@ -101,12 +101,27 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
+          double delta = (double)j[1]["steering_angle"] * -1.0 * deg2rad(25);
+          double a = j[1]["throttle"];
+
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
           * Both are in between [-1, 1].
           *
           */
+          // x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+          // y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+          // psi_[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+
+          double latency = 0.1;
+          const double Lf = 2.67;
+
+          // adjust state for latency
+          px = px + v * cos(psi) * latency;
+          py = py + v * sin(psi) * latency;
+          psi = psi + v * delta / Lf * latency;
+          v = v + a * latency;
 
           Eigen::VectorXd ptsxv = Eigen::VectorXd(ptsx.size());
           Eigen::VectorXd ptsyv = Eigen::VectorXd(ptsy.size());
@@ -181,7 +196,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(0));
+          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
