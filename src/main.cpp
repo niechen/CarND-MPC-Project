@@ -98,7 +98,7 @@ int main() {
           vector<double> ptsy = j[1]["ptsy"];
           double px = j[1]["x"];
           double py = j[1]["y"];
-          double psi = j[1]["psi"];
+          double psi = (double)j[1]["psi"] * -1.0;
           double v = j[1]["speed"];
 
           double delta = (double)j[1]["steering_angle"] * -1.0 * deg2rad(25);
@@ -117,12 +117,6 @@ int main() {
           double latency = 0.1;
           const double Lf = 2.67;
 
-          // adjust state for latency
-          px = px + v * cos(psi) * latency;
-          py = py + v * sin(psi) * latency;
-          psi = psi + v * delta / Lf * latency;
-          v = v + a * latency;
-
           Eigen::VectorXd ptsxv = Eigen::VectorXd(ptsx.size());
           Eigen::VectorXd ptsyv = Eigen::VectorXd(ptsy.size());
 
@@ -130,19 +124,25 @@ int main() {
           for (int i = 0; i < ptsx.size(); i++) {
             const double dx = ptsx[i] - px;
             const double dy = ptsy[i] - py;
-            ptsxv[i] = dx * cos(-psi) - dy * sin(-psi);
-            ptsyv[i] = dx * sin(-psi) + dy * cos(-psi);
+            ptsxv[i] = dx * cos(psi) - dy * sin(psi);
+            ptsyv[i] = dx * sin(psi) + dy * cos(psi);
           }
 
           auto coeffs = polyfit(ptsxv, ptsyv, 3);
 
-          double cte = polyeval(coeffs, 0.0) - 0.0;
+          // adjust state for latency
+          psi = v * delta / Lf * latency;
+          px = v * cos(psi) * latency;
+          py = v * sin(psi) * latency;
+          v = v + a * latency;
+
+          double cte = polyeval(coeffs, px) - py;
           // Due to the sign starting at 0, the orientation error is -f'(x).
           // derivative of coeffs[0] + coeffs[1] * x -> coeffs[1]
-          double epsi = 0 - atan(polyeval_derivative(coeffs, 0.0));
+          double epsi = psi - atan(polyeval_derivative(coeffs, px));
 
           Eigen::VectorXd state(6);
-          state << 0.0, 0.0, 0.0, v, cte, epsi;
+          state << px, py, psi, v, cte, epsi;
 
           auto vars = mpc.Solve(state, coeffs);
 

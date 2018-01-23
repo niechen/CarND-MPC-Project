@@ -11,5 +11,16 @@ The MPC model then constructs the cost function and constraints of the optimizat
 
 The model looks ahead 8 time steps, with each step being 0.1 second. These values are chosen by trial and error. Other values are tested, but these are the values that best balances performance, resolution, and a reasonable look ahead time for moving car.
 
+Update Equations used in the model:
+
+```
+x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+y_[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+psi_[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+v_[t+1] = v[t] + a[t] * dt
+cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+```
+
 The model is also taking a 100ms latency into consideration, by adjusting the state of the vehicle to it's predicted value in 100ms using the same kinetic model we used in the model.
 
