@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 25;
-double dt = 0.05;
+size_t N = 8;
+double dt = 0.1;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -46,6 +46,22 @@ class FG_eval {
   FG_eval(Eigen::VectorXd coeffs) { this->coeffs = coeffs; }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
+
+  AD<double> ad_polyeval(Eigen::VectorXd coeffs, AD<double> x) {
+    AD<double> result = 0.0;
+    for (int i = 0; i < coeffs.size(); i++) {
+      result += coeffs[i] * CppAD::pow(x, i);
+    }
+    return result;
+  }
+
+  AD<double> ad_polyeval_derivative(Eigen::VectorXd coeffs, AD<double> x) {
+    AD<double> result = 0.0;
+    for (int i = 1; i < coeffs.size(); i++) {
+      result += i * coeffs[i] * CppAD::pow(x, i - 1);
+    }
+    return result;
+  }
 
   void operator()(ADvector& fg, const ADvector& vars) {
     // TODO: implement MPC
@@ -115,8 +131,8 @@ class FG_eval {
       AD<double> delta0 = vars[delta_start + t - 1];
       AD<double> a0 = vars[a_start + t - 1];
 
-      AD<double> f0 = coeffs[0] + coeffs[1] * x0;
-      AD<double> psides0 = CppAD::atan(coeffs[1]);
+      AD<double> f0 = ad_polyeval(coeffs, x0);
+      AD<double> psides0 = CppAD::atan(ad_polyeval_derivative(coeffs, x0));
 
       // Here's `x` to get you started.
       // The idea here is to constraint this value to be 0.
@@ -147,7 +163,7 @@ MPC::MPC() {}
 MPC::~MPC() {}
 
 vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
-  size_t i;
+//  size_t i;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
   double x = x0[0];
@@ -249,11 +265,15 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
   bool ok = true;
   ok &= solution.status == CppAD::ipopt::solve_result<Dvector>::success;
 
-  auto cost = solution.obj_value;
-  std::cout << "Cost " << cost << std::endl;
-  return {solution.x[x_start + 1],   solution.x[y_start + 1],
-          solution.x[psi_start + 1], solution.x[v_start + 1],
-          solution.x[cte_start + 1], solution.x[epsi_start + 1],
-          solution.x[delta_start],   solution.x[a_start]};
+//  auto cost = solution.obj_value;
+//  std::cout << "Cost " << cost << std::endl;
+  predicted_x = vector<double>(N);
+  predicted_y = vector<double>(N);
+  for (int i=0; i < N; ++i) {
+    predicted_x[i] = solution.x[x_start + i];
+    predicted_y[i] = solution.x[y_start + i];
+  }
+
+  return {solution.x[delta_start],   solution.x[a_start]};
 }
 
